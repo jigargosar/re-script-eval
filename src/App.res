@@ -1,5 +1,17 @@
 %%raw(`import rough from "roughjs"`)
-%%raw(`import { Player } from "@remotion/player"`)
+module Player = {
+  @module("@remotion/player") @react.component
+  external make: (
+    ~component: React.component<'props>,
+    ~durationInFrames: int,
+    ~compositionWidth: int,
+    ~compositionHeight: int,
+    ~fps: int,
+    ~controls: bool=?,
+    ~loop: bool=?,
+    ~style: JsxDOMStyle.t=?,
+  ) => React.element = "Player"
+}
 type videoConfig = {durationInFrames: int, fps: int, width: int, height: int}
 
 @module("remotion")
@@ -50,16 +62,14 @@ module Scene = {
 
 @react.component
 let make = () => {
-  %raw(`
-    React.createElement(Player, {
-      component: Scene.make,
-      durationInFrames: 90,
-      compositionWidth: 500,
-      compositionHeight: 400,
-      fps: 30,
-      controls: true,
-      loop: true,
-      style: { width: 500 }
-    })
-  `)
+  <Player
+    component={Scene.make}
+    durationInFrames={90}
+    compositionWidth={500}
+    compositionHeight={400}
+    fps={30}
+    controls={true}
+    loop={true}
+    style={{width: "500px"}}
+  />
 }
