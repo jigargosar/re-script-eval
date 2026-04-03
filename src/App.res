@@ -37,6 +37,15 @@ external useCurrentFrame: unit => int = "useCurrentFrame"
 @module("remotion")
 external useVideoConfig: unit => videoConfig = "useVideoConfig"
 
+module Sequence = {
+  @module("remotion") @react.component
+  external make: (
+    ~from: int,
+    ~durationInFrames: int,
+    ~children: React.element,
+  ) => React.element = "Sequence"
+}
+
 let useRef = () => React.useRef(Nullable.null)
 let current = (ref: React.ref<Nullable.t<'a>>) => ref.current->Nullable.toOption
 
@@ -55,12 +64,12 @@ let drawCat = (svg: Dom.element, x: float) => {
   svg->appendChild(rc->circle(x +. 27.0, 192.0, 8.0, {...o, fill: "#333"}))
 }
 
-module Scene = {
+module CatScene = {
   @react.component
-  let make = () => {
+  let make = (~bg: string) => {
     let frame = useCurrentFrame()
     let {durationInFrames} = useVideoConfig()
-    let x = 100.0 +. Float.fromInt(frame) /. Float.fromInt(durationInFrames) *. 300.0
+    let x = 50.0 +. Float.fromInt(frame) /. Float.fromInt(durationInFrames) *. 400.0
     let svgRef = useRef()
 
     React.useEffect1(() => {
@@ -72,16 +81,33 @@ module Scene = {
       ref={ReactDOM.Ref.domRef(svgRef)}
       width="500"
       height="400"
-      style={{background: "#fdf6e3"}}
+      style={{background: bg}}
     />
+  }
+}
+
+module Episode1 = {
+  @react.component
+  let make = () => {
+    <>
+      <Sequence from={0} durationInFrames={90}>
+        <CatScene bg="#fdf6e3" />
+      </Sequence>
+      <Sequence from={90} durationInFrames={90}>
+        <CatScene bg="#d5e8d4" />
+      </Sequence>
+      <Sequence from={180} durationInFrames={90}>
+        <CatScene bg="#fdf6e3" />
+      </Sequence>
+    </>
   }
 }
 
 @react.component
 let make = () => {
   <Player
-    component={Scene.make}
-    durationInFrames={90}
+    component={Episode1.make}
+    durationInFrames={270}
     compositionWidth={500}
     compositionHeight={400}
     fps={30}
