@@ -1,20 +1,8 @@
-type roughCanvas
-type roughOptions = {
-  stroke?: string,
-  strokeWidth?: int,
-  fill?: string,
-  fillStyle?: string,
-  roughness?: float,
-  seed?: int,
-}
+// --- Remotion bindings ---
 
-@module("roughjs") @scope("default")
-external svgContext: (Dom.element, {..}) => roughCanvas = "svg"
-
-@send external circle: (roughCanvas, float, float, float, roughOptions) => Dom.element = "circle"
-@send external path: (roughCanvas, string, roughOptions) => Dom.element = "path"
-@send external appendChild: (Dom.element, Dom.element) => unit = "appendChild"
-@send external replaceChildren: Dom.element => unit = "replaceChildren"
+type playerRef
+@send external seekTo: (playerRef, int) => unit = "seekTo"
+@send external getCurrentFrame: playerRef => int = "getCurrentFrame"
 
 module Player = {
   @module("@remotion/player") @react.component
@@ -27,8 +15,10 @@ module Player = {
     ~controls: bool=?,
     ~loop: bool=?,
     ~style: JsxDOMStyle.t=?,
+    @as("ref") ~playerRef: React.ref<Nullable.t<playerRef>>=?,
   ) => React.element = "Player"
 }
+
 type videoConfig = {durationInFrames: int, fps: int, width: int, height: int}
 
 @module("remotion")
@@ -46,73 +36,174 @@ module Sequence = {
   ) => React.element = "Sequence"
 }
 
-let useRef = () => React.useRef(Nullable.null)
-let current = (ref: React.ref<Nullable.t<'a>>) => ref.current->Nullable.toOption
+// --- Player ref helpers ---
 
-let drawCat = (svg: Dom.element, x: float) => {
-  let rc = svgContext(svg, {"options": {"seed": 1}})
-  let o = {stroke: "#333", strokeWidth: 2, roughness: 1.5, fill: "#ffcc88", fillStyle: "solid"}
+// --- Scene data ---
 
-  svg->replaceChildren
-
-  svg->appendChild(rc->circle(x, 200.0, 150.0, o))
-  svg->appendChild(rc->path(`M ${(x -. 55.0)->Float.toString} 140 L ${(x -. 70.0)->Float.toString} 70 L ${(x -. 30.0)->Float.toString} 120 Z`, o))
-  svg->appendChild(rc->path(`M ${(x +. 55.0)->Float.toString} 140 L ${(x +. 70.0)->Float.toString} 70 L ${(x +. 30.0)->Float.toString} 120 Z`, o))
-  svg->appendChild(rc->circle(x -. 25.0, 190.0, 20.0, {...o, fill: "#fff"}))
-  svg->appendChild(rc->circle(x +. 25.0, 190.0, 20.0, {...o, fill: "#fff"}))
-  svg->appendChild(rc->circle(x -. 23.0, 192.0, 8.0, {...o, fill: "#333"}))
-  svg->appendChild(rc->circle(x +. 27.0, 192.0, 8.0, {...o, fill: "#333"}))
+type scene = {
+  name: string,
+  from: int,
+  duration: int,
+  bg: string,
+  label: string,
 }
 
-module CatScene = {
+let scenes = [
+  {name: "Kitchen", from: 0, duration: 90, bg: "#fdf6e3", label: "Kitchen"},
+  {name: "Backyard", from: 90, duration: 90, bg: "#d5e8d4", label: "Backyard"},
+  {name: "Kitchen 2", from: 180, duration: 90, bg: "#fdf6e3", label: "Kitchen"},
+]
+
+let totalFrames = scenes->Array.reduce(0, (acc, s) => acc + s.duration)
+let fps = 30
+
+// --- Scene component (trivial colored box + label) ---
+
+module SceneView = {
   @react.component
-  let make = (~bg: string) => {
+  let make = (~bg: string, ~label: string) => {
     let frame = useCurrentFrame()
     let {durationInFrames} = useVideoConfig()
-    let x = 50.0 +. Float.fromInt(frame) /. Float.fromInt(durationInFrames) *. 400.0
-    let svgRef = useRef()
+    let progress = Float.fromInt(frame) /. Float.fromInt(durationInFrames) *. 100.0
 
-    React.useEffect1(() => {
-      svgRef->current->Option.forEach(svg => drawCat(svg, x))
-      None
-    }, [frame])
-
-    <svg
-      ref={ReactDOM.Ref.domRef(svgRef)}
-      width="500"
-      height="400"
-      style={{background: bg}}
-    />
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        backgroundColor: bg,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        fontFamily: "monospace",
+      }}>
+      <div style={{fontSize: "48px", color: "#333", fontWeight: "bold"}}>
+        {label->React.string}
+      </div>
+      <div style={{fontSize: "18px", color: "#666", marginTop: "16px"}}>
+        {`Frame ${frame->Int.toString} / ${durationInFrames->Int.toString}`->React.string}
+      </div>
+      <div
+        style={{
+          marginTop: "24px",
+          width: "60%",
+          height: "8px",
+          backgroundColor: "#ccc",
+          borderRadius: "4px",
+        }}>
+        <div
+          style={{
+            width: `${progress->Float.toString}%`,
+            height: "100%",
+            backgroundColor: "#e74c3c",
+            borderRadius: "4px",
+          }}
+        />
+      </div>
+    </div>
   }
 }
+
+// --- Episode ---
 
 module Episode1 = {
   @react.component
   let make = () => {
     <>
-      <Sequence from={0} durationInFrames={90}>
-        <CatScene bg="#fdf6e3" />
-      </Sequence>
-      <Sequence from={90} durationInFrames={90}>
-        <CatScene bg="#d5e8d4" />
-      </Sequence>
-      <Sequence from={180} durationInFrames={90}>
-        <CatScene bg="#fdf6e3" />
-      </Sequence>
+      {scenes
+      ->Array.map(s =>
+        <Sequence key={s.name} from={s.from} durationInFrames={s.duration}>
+          <SceneView bg={s.bg} label={s.label} />
+        </Sequence>
+      )
+      ->React.array}
     </>
   }
 }
 
+// --- Chapter list ---
+
+module ChapterList = {
+  @react.component
+  let make = (~playerRef: React.ref<Nullable.t<playerRef>>, ~currentFrame: int) => {
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "4px",
+        minWidth: "160px",
+      }}>
+      {scenes
+      ->Array.map(s => {
+        let isActive = currentFrame >= s.from && currentFrame < s.from + s.duration
+        let timeStr = {
+          let sec = s.from / fps
+          let min = sec / 60
+          `${min->Int.toString}:${(mod(sec, 60))->Int.toString->String.padStart(2, "0")}`
+        }
+        <button
+          key={s.name}
+          onClick={_ =>
+            playerRef.current->Nullable.toOption->Option.forEach(p => p->seekTo(s.from))}
+          style={{
+            padding: "8px 12px",
+            border: "none",
+            borderLeft: isActive ? "3px solid #e74c3c" : "3px solid transparent",
+            backgroundColor: isActive ? "#f5f5f5" : "transparent",
+            cursor: "pointer",
+            textAlign: "left",
+            fontFamily: "monospace",
+            fontSize: "14px",
+          }}>
+          <div style={{fontWeight: isActive ? "bold" : "normal"}}>
+            {s.label->React.string}
+          </div>
+          <div style={{fontSize: "12px", color: "#999"}}>
+            {timeStr->React.string}
+          </div>
+        </button>
+      })
+      ->React.array}
+    </div>
+  }
+}
+
+// --- App ---
+
 @react.component
 let make = () => {
-  <Player
-    component={Episode1.make}
-    durationInFrames={270}
-    compositionWidth={500}
-    compositionHeight={400}
-    fps={30}
-    controls={true}
-    loop={true}
-    style={{width: "500px"}}
-  />
+  let playerRef = React.useRef(Nullable.null)
+  let (currentFrame, setCurrentFrame) = React.useState(() => 0)
+
+  React.useEffect0(() => {
+    let interval = Js.Global.setInterval(() => {
+      playerRef.current
+      ->Nullable.toOption
+      ->Option.forEach(p => setCurrentFrame(_ => p->getCurrentFrame))
+    }, 100)
+    Some(() => Js.Global.clearInterval(interval))
+  })
+
+  <div
+    style={{
+      display: "flex",
+      gap: "16px",
+      padding: "24px",
+      justifyContent: "center",
+      alignItems: "flex-start",
+      fontFamily: "monospace",
+    }}>
+    <Player
+      playerRef
+      component={Episode1.make}
+      durationInFrames={totalFrames}
+      compositionWidth={500}
+      compositionHeight={400}
+      fps={30}
+      controls={true}
+      loop={true}
+      style={{width: "500px"}}
+    />
+    <ChapterList playerRef currentFrame />
+  </div>
 }
