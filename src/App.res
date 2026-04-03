@@ -1,4 +1,6 @@
 %%raw(`import rough from "roughjs"`)
+%%raw(`import { Player } from "@remotion/player"`)
+%%raw(`import { useCurrentFrame, useVideoConfig } from "remotion"`)
 
 let useRef = () => React.useRef(Nullable.null)
 let current = (ref: React.ref<Nullable.t<'a>>) => ref.current->Nullable.toOption
@@ -18,31 +20,34 @@ let drawCat: (Dom.element, float) => unit = %raw(`function(svg, x) {
   svg.appendChild(rc.circle(x+27, 192, 8, { ...o, fill: '#333', fillStyle: 'solid' }))
 }`)
 
-let animate: Dom.element => unit = %raw(`function (svg) {
-  let start = null
-  function loop(ts) {
-    if (!start) start = ts
-    const t = (ts - start) / 3000
-    const x = 100 + (t % 1) * 300
-    drawCat(svg, x)
-    requestAnimationFrame(loop)
-  }
-  requestAnimationFrame(loop)
+let scene: unit => React.element = %raw(`function() {
+  const frame = useCurrentFrame()
+  const { durationInFrames } = useVideoConfig()
+  const x = 100 + (frame / durationInFrames) * 300
+
+  const ref = React.useRef(null)
+  React.useEffect(() => {
+    if (ref.current) drawCat(ref.current, x)
+  }, [frame])
+
+  return React.createElement('svg', {
+    ref, width: 500, height: 400,
+    style: { background: '#fdf6e3' }
+  })
 }`)
 
 @react.component
 let make = () => {
-  let svgRef = useRef()
-
-  React.useEffect0(() => {
-    svgRef->current->Option.forEach(animate)
-    None
-  })
-
-  <svg
-    ref={ReactDOM.Ref.domRef(svgRef)}
-    width="400"
-    height="400"
-    style={{background: "#fdf6e3"}}
-  />
+  %raw(`
+    React.createElement(Player, {
+      component: scene,
+      durationInFrames: 90,
+      compositionWidth: 500,
+      compositionHeight: 400,
+      fps: 30,
+      controls: true,
+      loop: true,
+      style: { width: 500 }
+    })
+  `)
 }

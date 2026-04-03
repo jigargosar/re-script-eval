@@ -12,10 +12,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@remotion/player": "4.0.443",
     "@rescript/react": "^0.14.0",
     "@rescript/runtime": "12.2.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "remotion": "4.0.443",
     "rescript": "12.2.0",
     "roughjs": "4.6.6"
   },
