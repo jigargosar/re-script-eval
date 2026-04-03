@@ -1,0 +1,29 @@
+{
+  "name": "re-script-eval",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "res:build": "rescript",
+    "res:watch": "rescript -w",
+    "dev": "vite",
+    "build": "rescript && vite build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.18.0",
+  "dependencies": {
+    "@rescript/core": "1.6.1",
+    "@rescript/react": "0.14.2",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "rescript": "12.2.0",
+    "roughjs": "4.6.6"
+  },
+  "devDependencies": {
+    "@rescript/language-server": "1.72.0",
+    "@vitejs/plugin-react": "6.0.1",
+    "vite": "8.0.3"
+  }
+}
