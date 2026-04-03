@@ -1,6 +1,12 @@
 %%raw(`import rough from "roughjs"`)
 %%raw(`import { Player } from "@remotion/player"`)
-%%raw(`import { useCurrentFrame, useVideoConfig } from "remotion"`)
+type videoConfig = {durationInFrames: int, fps: int, width: int, height: int}
+
+@module("remotion")
+external useCurrentFrame: unit => int = "useCurrentFrame"
+
+@module("remotion")
+external useVideoConfig: unit => videoConfig = "useVideoConfig"
 
 let useRef = () => React.useRef(Nullable.null)
 let current = (ref: React.ref<Nullable.t<'a>>) => ref.current->Nullable.toOption
@@ -20,27 +26,33 @@ let drawCat: (Dom.element, float) => unit = %raw(`function(svg, x) {
   svg.appendChild(rc.circle(x+27, 192, 8, { ...o, fill: '#333', fillStyle: 'solid' }))
 }`)
 
-let scene: unit => React.element = %raw(`function() {
-  const frame = useCurrentFrame()
-  const { durationInFrames } = useVideoConfig()
-  const x = 100 + (frame / durationInFrames) * 300
+module Scene = {
+  @react.component
+  let make = () => {
+    let frame = useCurrentFrame()
+    let {durationInFrames} = useVideoConfig()
+    let x = 100.0 +. Float.fromInt(frame) /. Float.fromInt(durationInFrames) *. 300.0
+    let svgRef = useRef()
 
-  const ref = React.useRef(null)
-  React.useEffect(() => {
-    if (ref.current) drawCat(ref.current, x)
-  }, [frame])
+    React.useEffect1(() => {
+      svgRef->current->Option.forEach(svg => drawCat(svg, x))
+      None
+    }, [frame])
 
-  return React.createElement('svg', {
-    ref, width: 500, height: 400,
-    style: { background: '#fdf6e3' }
-  })
-}`)
+    <svg
+      ref={ReactDOM.Ref.domRef(svgRef)}
+      width="500"
+      height="400"
+      style={{background: "#fdf6e3"}}
+    />
+  }
+}
 
 @react.component
 let make = () => {
   %raw(`
     React.createElement(Player, {
-      component: scene,
+      component: Scene.make,
       durationInFrames: 90,
       compositionWidth: 500,
       compositionHeight: 400,
